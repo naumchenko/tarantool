@@ -125,7 +125,8 @@ public:
 	/**
 	 * Begin initial recovery from snapshot or dirty disk data.
 	 */
-	virtual void beginInitialRecovery() {};
+	virtual void beginInitialRecovery(uint64_t lsn)
+		{(void) lsn; };
 	/**
 	 * Notify engine about a start of recovering from WALs
 	 * that could be local WALs during local recovery
@@ -260,7 +261,7 @@ engine_bootstrap();
  * Called at the start of recovery.
  */
 void
-engine_begin_initial_recovery();
+engine_begin_initial_recovery(uint64_t lsn);
 
 /**
  * Called in the middle of JOIN stage,

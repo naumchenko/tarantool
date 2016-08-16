@@ -256,12 +256,12 @@ engine_bootstrap()
 }
 
 void
-engine_begin_initial_recovery()
+engine_begin_initial_recovery(uint64_t lsn)
 {
 	/* recover engine snapshot */
 	Engine *engine;
 	engine_foreach(engine) {
-		engine->beginInitialRecovery();
+		engine->beginInitialRecovery(lsn);
 	}
 }
 
