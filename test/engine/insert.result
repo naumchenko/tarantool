@@ -658,3 +658,98 @@ s:select{}
 s:drop()
 ---
 ...
+-- gh-1701 Forbid NaN
+s = box.schema.space.create('test', { engine = engine })
+---
+...
+index = s:create_index('pk', { parts = {1, 'scalar'} })
+---
+...
+s:insert({1})
+---
+- [1]
+...
+s:insert({2})
+---
+- [2]
+...
+s:insert({3})
+---
+- [3]
+...
+s:insert({1/0 - 1/0}) -- must fail
+---
+- error: 'Tuple field 1 type does not match one required by operation: expected scalar'
+...
+s:insert({math.sqrt(-1)}) -- must fail
+---
+- error: 'Tuple field 1 type does not match one required by operation: expected scalar'
+...
+s:insert({1}) -- must fail
+---
+- error: Duplicate key exists in unique index 'pk' in space 'test'
+...
+s:insert({4})
+---
+- [4]
+...
+s:select{}
+---
+- - [1]
+  - [2]
+  - [3]
+  - [4]
+...
+s:drop()
+---
+...
+s = box.schema.space.create('test', { engine = engine })
+---
+...
+index1 = s:create_index('primary', { parts = {1, 'scalar'} })
+---
+...
+index2 = s:create_index('secondary', { unique = false, parts = {2, 'scalar'} })
+---
+...
+s:insert{1, 1/0}
+---
+- [1, inf]
+...
+s:insert{2, -1/0}
+---
+- [2, -inf]
+...
+s:insert{3, 1/0-1/0} -- must fail
+---
+- error: 'Tuple field 2 type does not match one required by operation: expected scalar'
+...
+s:insert{4, 1/0}
+---
+- [4, inf]
+...
+s:insert{5, -1/0}
+---
+- [5, -inf]
+...
+s:insert{6, 1/0-1/0} -- must fail
+---
+- error: 'Tuple field 2 type does not match one required by operation: expected scalar'
+...
+index1:select{}
+---
+- - [1, inf]
+  - [2, -inf]
+  - [4, inf]
+  - [5, -inf]
+...
+index2:select({},{iterator='LT'})
+---
+- - [4, inf]
+  - [1, inf]
+  - [5, -inf]
+  - [2, -inf]
+...
+s:drop()
+---
+...

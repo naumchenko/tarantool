@@ -80,10 +80,10 @@ key_validate_parts(struct key_def *key_def, const char *key,
 
 	for (uint32_t part = 0; part < part_count; part++) {
 		enum mp_type mp_type = mp_typeof(*key);
-		mp_next(&key);
 
 		key_mp_type_validate(key_def->parts[part].type, mp_type,
 				     ER_KEY_PART_TYPE, part);
+		mp_next_validate(mp_type, key_def->parts[part].type, &key, part);
 	}
 }
 

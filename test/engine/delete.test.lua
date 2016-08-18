@@ -76,3 +76,20 @@ index1:select{}
 index2:select{}
 index3:select{}
 space:drop()
+
+-- gh-1701 Forbid NaN
+space = box.schema.space.create('test', { engine = engine })
+index1 = space:create_index('primary')
+index2 = space:create_index('secondary', { parts = {2, 'scalar'} })
+space:insert({1, 1})
+space:insert({2, 2})
+space:insert({3, 3})
+space:insert({4, 4})
+tmp = index1:delete({1})
+tmp = index1:delete({1/0 - 1/0})
+tmp = index1:delete(math.sqrt(-1))
+tmp = index2:delete({2})
+tmp = index2:delete({10/0 - 5/0})
+index1:select{}
+index2:select{}
+space:drop()

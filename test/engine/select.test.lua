@@ -111,3 +111,22 @@ index2:get{104}
 index3:get{9}
 index3:select{1235}
 space:drop()
+
+-- gh-1701 Forbid NaN
+space = box.schema.space.create('test', { engine = engine })
+index1 = space:create_index('primary')
+index2 = space:create_index('secondary', { parts = {2, 'scalar'} })
+space:insert({1, 1})
+space:insert({2, 'a'})
+space:insert({3, 222.444})
+space:insert({4, 1/0})
+space:insert({4, -5/0})
+index1:get({1})
+index1:get({1/0})
+index2:get({1})
+index2:get({'a'})
+index2:get({1/0})
+index2:get({1/0 - 1/0})
+index1:select{}
+index2:select{}
+space:drop()

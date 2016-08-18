@@ -84,3 +84,21 @@ index2:select{}
 index3:select{}
 space:drop()
 
+-- gh-1701 Forbid NaN
+space = box.schema.space.create('test', { engine = engine })
+index1 = space:create_index('primary')
+index2 = space:create_index('secondary', { parts = {2, 'scalar'} })
+space:insert({1, 1})
+space:insert({2, 'a'})
+space:insert({3, true})
+space:insert({4, 1/0})
+index1:update({1}, {{'=', 3, 1/0}})
+index1:update({2}, {{'=', 3, 1/0 - 1/0}})
+index1:update({2}, {{'=', 2, 1/0 - 1/0}}) -- must fail
+index1:update({2}, {{'+', 2, 1/0 - 1/0}}) -- must fail
+index2:update({true}, {{'=', 2, 1/0 - 1/0}}) -- must fail
+index2:update({true}, {{'!', 2, -1/0}})
+index1:select{}
+index2:select{}
+space:drop()
+

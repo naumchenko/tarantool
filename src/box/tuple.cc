@@ -35,6 +35,7 @@
 
 #include "trivia/util.h"
 #include "fiber.h"
+#include <math.h>
 
 uint32_t snapshot_version;
 
@@ -60,6 +61,21 @@ static struct mempool tuple_iterator_pool;
  * \sa tuple_bless()
  */
 struct tuple *box_tuple_last;
+
+void
+mp_next_validate(enum mp_type tp, enum field_type key_type, const char **data,
+		 uint32_t field_no)
+{
+	if (tp == MP_DOUBLE) {
+		double val = mp_decode_double(data);
+		if (isnan(val)) {
+			tnt_raise(ClientError, ER_FIELD_TYPE,
+				  field_no + 1, field_type_strs[key_type]);
+		}
+	} else {
+		mp_next(data);
+	}
+}
 
 /*
  * Validate a new tuple format and initialize tuple-local
@@ -90,7 +106,7 @@ tuple_init_field_map(struct tuple_format *format, struct tuple *tuple)
 	enum mp_type mp_type = mp_typeof(*pos);
 	key_mp_type_validate(format->fields[0].type, mp_type,
 			     ER_FIELD_TYPE, INDEX_OFFSET);
-	mp_next(&pos);
+	mp_next_validate(mp_type, format->fields[0].type, &pos, 0);
 	/* other fields...*/
 	for (uint32_t i = 1; i < format->field_count; i++) {
 		mp_type = mp_typeof(*pos);
@@ -99,7 +115,7 @@ tuple_init_field_map(struct tuple_format *format, struct tuple *tuple)
 		if (format->fields[i].offset_slot < 0)
 			field_map[format->fields[i].offset_slot] =
 				(uint32_t) (pos - tuple->data);
-		mp_next(&pos);
+		mp_next_validate(mp_type, format->fields[i].type, &pos, i);
 	}
 }
 
@@ -130,9 +146,10 @@ tuple_validate_raw(struct tuple_format *format, const char *data)
 
 	/* Check field types */
 	for (uint32_t i = 0; i < format->field_count; i++) {
-		key_mp_type_validate(format->fields[i].type, mp_typeof(*data),
+		enum mp_type type = mp_typeof(*data);
+		key_mp_type_validate(format->fields[i].type, type,
 				     ER_FIELD_TYPE, i + INDEX_OFFSET);
-		mp_next(&data);
+		mp_next_validate(type, format->fields[i].type, &data, i);
 	}
 }
 

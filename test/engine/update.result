@@ -645,3 +645,71 @@ index3:select{}
 space:drop()
 ---
 ...
+-- gh-1701 Forbid NaN
+space = box.schema.space.create('test', { engine = engine })
+---
+...
+index1 = space:create_index('primary')
+---
+...
+index2 = space:create_index('secondary', { parts = {2, 'scalar'} })
+---
+...
+space:insert({1, 1})
+---
+- [1, 1]
+...
+space:insert({2, 'a'})
+---
+- [2, 'a']
+...
+space:insert({3, true})
+---
+- [3, true]
+...
+space:insert({4, 1/0})
+---
+- [4, inf]
+...
+index1:update({1}, {{'=', 3, 1/0}})
+---
+- [1, 1, inf]
+...
+index1:update({2}, {{'=', 3, 1/0 - 1/0}})
+---
+- [2, 'a', nan]
+...
+index1:update({2}, {{'=', 2, 1/0 - 1/0}}) -- must fail
+---
+- error: 'Tuple field 2 type does not match one required by operation: expected scalar'
+...
+index1:update({2}, {{'+', 2, 1/0 - 1/0}}) -- must fail
+---
+- error: 'Argument type in operation ''+'' on field 2 does not match field type: expected
+    a NUMBER'
+...
+index2:update({true}, {{'=', 2, 1/0 - 1/0}}) -- must fail
+---
+- error: 'Tuple field 2 type does not match one required by operation: expected scalar'
+...
+index2:update({true}, {{'!', 2, -1/0}})
+---
+- [3, -inf, true]
+...
+index1:select{}
+---
+- - [1, 1, inf]
+  - [2, 'a', nan]
+  - [3, -inf, true]
+  - [4, inf]
+...
+index2:select{}
+---
+- - [3, -inf, true]
+  - [1, 1, inf]
+  - [4, inf]
+  - [2, 'a', nan]
+...
+space:drop()
+---
+...

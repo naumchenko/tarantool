@@ -778,6 +778,10 @@ tuple_bless(struct tuple *tuple)
 	return tuple;
 }
 
+void
+mp_next_validate(enum mp_type tp, enum field_type key_type, const char **data,
+		 uint32_t field_no);
+
 static inline void
 mp_tuple_assert(const char *tuple, const char *tuple_end)
 {

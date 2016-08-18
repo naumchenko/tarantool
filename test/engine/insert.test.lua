@@ -86,4 +86,28 @@ tmp = s:delete(1, 2, 3)
 s:select{}
 s:drop()
 
+-- gh-1701 Forbid NaN
+s = box.schema.space.create('test', { engine = engine })
+index = s:create_index('pk', { parts = {1, 'scalar'} })
+s:insert({1})
+s:insert({2})
+s:insert({3})
+s:insert({1/0 - 1/0}) -- must fail
+s:insert({math.sqrt(-1)}) -- must fail
+s:insert({1}) -- must fail
+s:insert({4})
+s:select{}
+s:drop()
 
+s = box.schema.space.create('test', { engine = engine })
+index1 = s:create_index('primary', { parts = {1, 'scalar'} })
+index2 = s:create_index('secondary', { unique = false, parts = {2, 'scalar'} })
+s:insert{1, 1/0}
+s:insert{2, -1/0}
+s:insert{3, 1/0-1/0} -- must fail
+s:insert{4, 1/0}
+s:insert{5, -1/0}
+s:insert{6, 1/0-1/0} -- must fail
+index1:select{}
+index2:select({},{iterator='LT'})
+s:drop()

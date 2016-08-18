@@ -384,3 +384,15 @@ test_run:cmd("setopt delimiter ''");
 -- 'dump ' .. anything_to_string(box.space.s:select{})-- compare with (1) visually!
 
 -- box.space.s:drop()
+
+-- gh-1701 Forbid NaN
+space = box.schema.space.create('test', { engine = engine })
+index1 = space:create_index('primary', { parts = {1, 'scalar'} })
+space:insert({1})
+space:insert({2})
+space:insert({3})
+space:upsert({1/0}, {{'=', 2, 100}})
+space:upsert({1/0 - 1/0}, {{'=', 2, 100}}) -- must fail
+space:upsert({1}, {{'=', 2, 1/0 - 1/0}})
+space:select{}
+space:drop()
