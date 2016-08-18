@@ -218,7 +218,9 @@ HEAP(init_node)(struct HEAP(node) *node);
  * Swap two parent and son.
  */
 static inline void
-HEAP(swap_parent_and_son)(struct HEAP(node) *parent, struct HEAP(node) *son);
+HEAP(swap_parent_and_son)(struct HEAP(core) *heap,
+				struct HEAP(node) *parent,
+				struct HEAP(node) *son);
 
 /**
  * Update parent field of children.
@@ -320,12 +322,10 @@ HEAP(get_size_from_children)(struct HEAP(node) *node) {
 		return 0;
 	}
 	uint64_t size = 1;
-	if (node->left) {
+	if (node->left)
 		size += node->left->size;
-	}
-	if (node->right) {
+	if (node->right)
 		size += node->right->size;
-	}
 
 	return size;
 }
@@ -358,13 +358,13 @@ HEAP(is_full)(const struct HEAP(node) *root) {
  */
 static inline void
 HEAP(push_info_to_children)(struct HEAP(node) *node) {
- assert(node);
- if (node->left) {
-	 node->left->parent = node;
- }
- if (node->right) {
-	 node->right->parent = node;
- }
+	assert(node);
+	if (node->left)
+		node->left->parent = node;
+
+	if (node->right)
+		node->right->parent = node;
+
 }
 
 /**
@@ -374,16 +374,13 @@ static inline void
 HEAP(push_info_to_parent)(struct HEAP(node) *parent, struct HEAP(node) *son) {
 	assert(parent);
 	assert(son);
-	if (!parent->parent) {
+	if (!parent->parent)
 		return;
-	}
 	struct HEAP(node) *pparent = parent->parent;
-	if (pparent->left == son) {
+	if (pparent->left == son)
 		pparent->left = parent;
-	}
-	else {
+	else
 		pparent->right = parent;
-	}
 }
 
 /**
@@ -395,9 +392,8 @@ HEAP(cut_leaf)(struct HEAP(node) *node) {
 	assert(node->left == NULL);
 	assert(node->right == NULL);
 
-	if (node->parent == NULL) {
+	if (node->parent == NULL)
 		return;
-	}
 
 	struct HEAP(node) *parent = node->parent;
 	if (parent->left == node) {
@@ -418,43 +414,23 @@ HEAP(cut_leaf)(struct HEAP(node) *node) {
  * Swap two connected(i.e parent and son) nodes.
  */
 static inline void
-HEAP(swap_parent_and_son)(struct HEAP(node) *parent, struct HEAP(node) *son) {
-	assert(parent);
-	assert(son);
-	struct HEAP(node) *tmp;
-	uint64_t tmp_size;
-	tmp_size = parent->size;
-	parent->size = son->size;
-	son->size = tmp_size;
-
-	if (parent->left == son) {
-		tmp = son->left;
-		son->left = parent;
-		parent->left = tmp;
-		son->parent = parent->parent;
-		HEAP(push_info_to_parent)(son, parent);
-	}
-	else {
-		tmp = parent->left;
-		parent->left = son->left;
-		son->left = tmp;
-	}
-
-	if (parent->right == son) {
-		tmp = son->right;
-		son->right = parent;
-		parent->right = tmp;
-		son->parent = parent->parent;
-		HEAP(push_info_to_parent)(son, parent);
-	}
-	else {
-		tmp = parent->right;
-		parent->right	= son->right;
-		son->right = tmp;
-	}
-
+HEAP(swap_parent_and_son)(struct HEAP(core) *heap,
+				struct HEAP(node) *parent,
+				struct HEAP(node) *son) {
+	assert(parent && son && son->parent == parent);
+	struct HEAP(node) tmp = *parent;
+	*parent = *son;
+	*son = tmp;
+	if (son->left == son)
+	  son->left = parent;
+	else
+	  son->right = parent;
 	HEAP(push_info_to_children)(parent);
 	HEAP(push_info_to_children)(son);
+	HEAP(push_info_to_parent)(son, parent);
+
+	if (son->parent == NULL)
+		heap->root = son; /* save root */
 }
 
 /**
@@ -462,34 +438,30 @@ HEAP(swap_parent_and_son)(struct HEAP(node) *parent, struct HEAP(node) *son) {
  */
 static struct HEAP(node) *
 HEAP(get_first_not_full)(struct HEAP(node) *root) {
- assert(root);
+	assert(root);
 
- bool is_full_left, is_full_right;
- while (root->right) {
+	bool is_full_left, is_full_right;
+	while (root->right) {
 		is_full_left = HEAP(is_full)(root->left);
 		is_full_right = HEAP(is_full)(root->right);
 
-		assert(is_full_left || is_full_right); /* heap is always complete tree */
+		/* heap is always complete tree */
+		assert(is_full_left || is_full_right);
 
-	if (is_full_left && is_full_right) {
-		if (root->left->size == root->right->size) {
-			root = root->left;
-		}
-		else {
-			root = root->right;
+		if (is_full_left && is_full_right) {
+			if (root->left->size == root->right->size)
+				root = root->left;
+			else
+				root = root->right;
+		} else {
+			if (is_full_left)
+				root = root->right;
+			else
+				root = root->left;
 		}
 	}
-	else {
-		if (is_full_left) {
-			root = root->right;
-		}
-		else {
-			root = root->left;
-		}
-	}
- }
 
- return root;
+	return root;
 }
 
 /**
@@ -507,20 +479,15 @@ HEAP(get_last)(struct HEAP(node) *root) {
 		assert(is_full_left || is_full_right); /* heap is always complete tree */
 
 		if (is_full_left && is_full_right) {
-			if (root->left->size == root->right->size) {
+			if (root->left->size == root->right->size)
 				root = root->right;
-			}
-		else {
-			root = root->left;
-		}
-		}
-		else {
-			if (is_full_left) {
-				root = root->right;
-			}
-			else {
+			else
 				root = root->left;
-			}
+		} else {
+			if (is_full_left)
+				root = root->right;
+			else
+				root = root->left;
 		}
 	}
 
@@ -537,7 +504,7 @@ HEAP(sift_up)(struct HEAP(core) *heap, struct HEAP(node) *node) {
 	assert(node);
 	struct HEAP(node) *parent = node->parent;
 	while (parent && HEAP_LESS(heap, node, parent)) {
-		HEAP(swap_parent_and_son)(parent, node);
+		HEAP(swap_parent_and_son)(heap, parent, node);
 		parent = node->parent;
 	}
 }
@@ -552,26 +519,23 @@ HEAP(sift_down)(struct HEAP(core) *heap, struct HEAP(node) *node) {
 	struct HEAP(node) *left = node->left;
 	struct HEAP(node) *right = node->right;
 	struct HEAP(node) *min_son;
-	if (left && right) {
+	if (left && right)
 		min_son = (HEAP_LESS(heap, left, right) ? left : right);
-	}
 
 	while (left && right && HEAP_LESS(heap, min_son, node)) {
-		HEAP(swap_parent_and_son)(node, min_son);
+		HEAP(swap_parent_and_son)(heap, node, min_son);
 		left = node->left;
 		right = node->right;
 
-		if (left && right) {
+		if (left && right)
 			min_son = (HEAP_LESS(heap, left, right) ? left : right);
-		}
 	}
 
 	if ((left || right) && HEAP_LESS(heap, left, node)) {
 		assert(left); /*left is not null because heap is complete tree*/
 		assert(right == NULL);
-		if (HEAP_LESS(heap, left, node)) {
-			HEAP(swap_parent_and_son)(node, left);
-		}
+		if (HEAP_LESS(heap, left, node))
+			HEAP(swap_parent_and_son)(heap, node, left);
 	}
 }
 
@@ -606,9 +570,8 @@ HEAP(insert)(struct HEAP(core) *heap, struct HEAP(node) *node) {
 	(void) heap;
 	assert(heap);
 
-	if (node == NULL) {
+	if (node == NULL)
 		return;
-	}
 
 	HEAP(init_node)(node);
 	if (heap->root == NULL) {
@@ -619,18 +582,14 @@ HEAP(insert)(struct HEAP(core) *heap, struct HEAP(node) *node) {
 
 	struct HEAP(node) *first_not_full = HEAP(get_first_not_full)(heap->root);
 	node->parent = first_not_full;
-	if (first_not_full->left) {
+	if (first_not_full->left)
 		first_not_full->right = node;
-	}
-	else {
+	else
 		first_not_full->left = node;
-	}
 	HEAP(inc_size)(node); /* update sizes */
 
 	HEAP(sift_up)(heap, node); /* heapify */
 
-	/* save new root */
-	heap->root = HEAP(get_root)(node);
 }
 
 /**
@@ -676,6 +635,9 @@ HEAP(delete)(struct HEAP(core) *heap, struct HEAP(node) *value_node) {
 	last_node->left = value_node->left;
 	last_node->right = value_node->right;
 	last_node->size = HEAP(get_size_from_children)(last_node);
+	if (last_node->parent == NULL)
+		heap->root = last_node; /* save root */
+
 	HEAP(push_info_to_parent)(last_node, value_node);
 	HEAP(push_info_to_children)(last_node);
 
@@ -687,9 +649,6 @@ HEAP(delete)(struct HEAP(core) *heap, struct HEAP(node) *value_node) {
 
 	/*heapify */
 	HEAP(update)(heap, last_node);
-
-	/* save new root */
-	heap->root = HEAP(get_root)(last_node);
 }
 
 /**
@@ -702,9 +661,6 @@ HEAP(update)(struct HEAP(core) *heap, struct HEAP(node) *value_node) {
 	/* heapify */
 	HEAP(sift_down)(heap, value_node);
 	HEAP(sift_up)(heap, value_node);
-
-	/* save new root */
-	heap->root = HEAP(get_root)(value_node);
 }
 
 
@@ -718,27 +674,23 @@ HEAP(check_local_invariants) (struct HEAP(core) *heap,
 	(void) heap;
 	assert(node);
 
-	if (parent != node->parent) {
+	if (parent != node->parent)
 		return false;
-	}
-	if (parent && parent->left != node && parent->right != node) {
+	if (parent && parent->left != node && parent->right != node)
 		return false;
-	}
 
-	if (node->size != HEAP(get_size_from_children)(node)) {
+	if (node->size != HEAP(get_size_from_children)(node))
 		return false;
-	}
 	if (node->right && node->left &&
-			!HEAP(is_full)(node->right) && !HEAP(is_full)(node->left)) {
+			!HEAP(is_full)(node->right) &&
+			!HEAP(is_full)(node->left))
 		return false;
-	}
 
-	if (node->left && HEAP_LESS(heap, node->left, node)) {
+	if (node->left && HEAP_LESS(heap, node->left, node))
 		return false;
-	}
-	if (node->right && HEAP_LESS(heap, node->right, node)) {
+
+	if (node->right && HEAP_LESS(heap, node->right, node))
 		return false;
-	}
 
 	return true;
 }
@@ -751,13 +703,11 @@ HEAP(check_invariants)(struct HEAP(core) *heap,
 			struct HEAP(node) *parent,
 			struct HEAP(node) *node) {
 	(void) heap;
-	if (!node) {
+	if (!node)
 		return true;
-	}
 
-	if (!HEAP(check_local_invariants)(heap, parent, node)) {
+	if (!HEAP(check_local_invariants)(heap, parent, node))
 		return false;
-	}
 
 	bool check_left = HEAP(check_invariants)(heap, node, node->left);
 	bool check_right = HEAP(check_invariants)(heap, node, node->right);
@@ -779,8 +729,8 @@ static inline void HEAP(iterator_init)
 /**
  * Heap iterator next.
  */
-static inline struct HEAP(node) * HEAP(iterator_next)
-(struct HEAP(iterator) *it) {
+static inline struct HEAP(node) *
+HEAP(iterator_next) (struct HEAP(iterator) *it) {
 	struct HEAP(node) *cnode = it->current_node;
 
 	if (!cnode)
@@ -793,8 +743,9 @@ static inline struct HEAP(node) * HEAP(iterator_next)
 		return cnode;
 	}
 
-	while (((it->mask & (1 << it->depth)) || it->current_node->right == NULL)
-					&& it->depth) {
+	while (((it->mask & (1 << it->depth)) ||
+			it->current_node->right == NULL) &&
+			it->depth) {
 		it->depth--;
 		it->current_node = it->current_node->parent;
 	}
