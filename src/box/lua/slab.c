@@ -34,6 +34,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <lj_obj.h>
 
 #include "small/small.h"
 #include "small/quota.h"
@@ -190,6 +191,10 @@ lbox_slab_info(struct lua_State *L)
 
 	lua_pushstring(L, "arena_used_ratio");
 	lua_pushstring(L, ratio_buf);
+	lua_settable(L, -3);
+
+	lua_pushstring(L, "lua_memory");
+	lua_pushinteger(L, G(L)->gc.total);
 	lua_settable(L, -3);
 
 	return 1;
