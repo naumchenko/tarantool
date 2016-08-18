@@ -157,6 +157,13 @@ public:
 	struct key_def *key_def_tuple_to_key;
 	/** To fetch the primary key from the secondary index tuple. */
 	struct key_def *key_def_secondary_to_primary;
+	/**
+	 * key_def_mask is the bitmask in that bit 'n' is set if
+	 * key_def (@sa class Index) parts contains a part with
+	 * fieldno equal to 'n'. This mask is used for update
+	 * optimization (@sa VinylSpace::executeUpdate).
+	 */
+	uint64_t key_def_mask;
 	VinylPrimaryIndex *primary_index;
 };
 

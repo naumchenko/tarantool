@@ -867,8 +867,13 @@ update_op_by(char opcode)
 
 static void
 update_read_ops(struct tuple_update *update, const char *expr,
-		const char *expr_end)
+		const char *expr_end, uint64_t *cols_mask_out)
 {
+	/**
+	 * cols_mask - bitmask in that if bit 'n' is set then tuple
+	 * field with number 'n' will be changed by update operations.
+	 */
+	uint64_t cols_mask = 0;
 	if (mp_typeof(*expr) != MP_ARRAY)
 		tnt_raise(IllegalParams,
 			  "update operations must be an "
@@ -917,12 +922,56 @@ update_read_ops(struct tuple_update *update, const char *expr,
 		} else {
 			tnt_raise(ClientError, ER_NO_SUCH_FIELD, field_no);
 		}
+		/*
+		 * (uint64_t)-1 - in a binary representation it is only ones.
+		 * If in cols_mask all bits are ones then need not to continue
+		 * the mask calculating.
+		 */
+		if (cols_mask != (uint64_t)-1) {
+			/*
+			 * If the field number is bigger than 64 then
+			 * optimization disabled.
+			 */
+			if (field_no > 64) {
+				cols_mask = -1;
+			} else {
+				/*
+				 * If the operation is insertion or deletion
+				 * then it potentially changes a range of
+				 * columns by moving them, so need to set a
+				 * range of bits.
+				 */
+				if (op->opcode == '!' || op->opcode == '#') {
+					/* Set all bits. */
+					uint64_t range = -1;
+					/*
+					 * Unset bits that are placed before
+					 * the operation field number. Fields
+					 * corresponding to this bits
+					 * definitely will not be changed.
+					 */
+					range = range >> (field_no - 1);
+					cols_mask |= range;
+				} else {
+					/*
+					 * If the operation changes only one
+					 * column then set
+					 * the corresponding bit.
+					 */
+					uint64_t one_col = 1;
+					one_col = one_col << (64 - field_no);
+					cols_mask |= one_col;
+				}
+			}
+		}
 		op->meta->read_arg(update->index_base, op, &expr);
 	}
 
 	/* Check the remainder length, the request must be fully read. */
 	if (expr != expr_end)
 		tnt_raise(IllegalParams, "can't unpack update operations");
+	if (cols_mask_out)
+		*cols_mask_out = cols_mask;
 }
 
 static void
@@ -986,20 +1035,21 @@ tuple_update_check_ops(tuple_update_alloc_func alloc, void *alloc_ctx,
 {
 	struct tuple_update update;
 	update_init(&update, alloc, alloc_ctx, index_base);
-	update_read_ops(&update, expr, expr_end);
+	update_read_ops(&update, expr, expr_end, NULL);
 }
 
 const char *
 tuple_update_execute(tuple_update_alloc_func alloc, void *alloc_ctx,
 		     const char *expr,const char *expr_end,
 		     const char *old_data, const char *old_data_end,
-		     uint32_t *p_tuple_len, int index_base)
+		     uint32_t *p_tuple_len, int index_base,
+		     uint64_t *cols_mask)
 {
 	try {
 		struct tuple_update update;
 		update_init(&update, alloc, alloc_ctx, index_base);
 
-		update_read_ops(&update, expr, expr_end);
+		update_read_ops(&update, expr, expr_end, cols_mask);
 		update_do_ops(&update, old_data, old_data_end);
 
 		return update_finish(&update, p_tuple_len);
@@ -1018,7 +1068,7 @@ tuple_upsert_execute(tuple_update_alloc_func alloc, void *alloc_ctx,
 		struct tuple_update update;
 		update_init(&update, alloc, alloc_ctx, index_base);
 
-		update_read_ops(&update, expr, expr_end);
+		update_read_ops(&update, expr, expr_end, NULL);
 		upsert_do_ops(&update, old_data, old_data_end, suppress_error);
 
 		return update_finish(&update, p_tuple_len);

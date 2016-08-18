@@ -149,9 +149,18 @@ VinylSecondaryIndex::VinylSecondaryIndex(struct vy_env *env_arg,
 					 struct key_def *key_def_arg)
 	:VinylIndex(env_arg, key_def_arg)
 	 ,key_def_tuple_to_key(NULL)
-	 ,key_def_secondary_to_primary(NULL)
+	 ,key_def_secondary_to_primary(NULL), key_def_mask(0)
 	 ,primary_index(pk_arg)
-{}
+{
+	for (uint32_t i = 0; i < key_def->part_count; ++i) {
+		uint32_t fieldno = key_def->parts[i].fieldno;
+		if (fieldno > 64) {
+			key_def_mask = -1;
+			break;
+		}
+		key_def_mask |= ((uint64_t)1) << (63 - fieldno);
+	}
+}
 
 /**
  * Get tuple from the primary index by the partial tuple from secondary index.
